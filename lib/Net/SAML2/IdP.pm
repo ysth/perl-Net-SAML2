@@ -124,7 +124,7 @@ sub new_from_xml {
         entityid       => $xpath->findvalue('//md:EntityDescriptor/@entityID')->value,
         sso_urls       => $data->{SSO},
         slo_urls       => $data->{SLO},
-        art_urls       => $data->{Art},
+        art_urls       => $data->{Art} || {},
         certs          => $data->{Cert},
         formats        => $data->{NameIDFormat},
         default_format => $data->{DefaultFormat},
