@@ -1,7 +1,6 @@
 package Net::SAML2::IdP;
 use Moose;
-use MooseX::Types::Moose qw/ Str Object HashRef ArrayRef /;
-use MooseX::Types::URI qw/ Uri /;
+use MooseX::Types::Moose qw/ Str Object HashRef ArrayRef Bool /;
 
 =head1 NAME
 
@@ -31,7 +30,8 @@ Constructor
 =cut
 
 has 'entityid'       => (isa => Str, is => 'ro', required => 1);
-has 'cacert'         => (isa => Str, is => 'ro', required => 1);
+has 'cacert'         => (isa => Str, is => 'ro');
+has 'verify_certs'   => (isa => Bool, is => 'ro', default => 1);
 has 'sso_urls'       => (isa => HashRef[Str], is => 'ro', required => 1);
 has 'slo_urls'       => (isa => HashRef[Str], is => 'ro', required => 1);
 has 'art_urls'       => (isa => HashRef[Str], is => 'ro', required => 1);
@@ -39,7 +39,7 @@ has 'certs'          => (isa => HashRef[Str], is => 'ro', required => 1);
 has 'formats'        => (isa => HashRef[Str], is => 'ro', required => 1);
 has 'default_format' => (isa => Str, is => 'ro', required => 1);
 
-=head2 new_from_url( url => $url, cacert => $cacert )
+=head2 new_from_url( url => $url, verify_certs => 1, cacert => $cacert )
 
 Create an IdP object by retrieving the metadata at the given URL.
 
@@ -50,17 +50,17 @@ Dies if the metadata can't be retrieved.
 sub new_from_url {
     my ($class, %args) = @_;
         
-    my $req = GET $args{url};
+    my $req = GET delete $args{url};
     my $ua = LWP::UserAgent->new;
 
     my $res = $ua->request($req);
     die "no metadata" unless $res->is_success;
     my $xml = $res->content;
 
-    return $class->new_from_xml( xml => $xml, cacert => $args{cacert} );
+    return $class->new_from_xml( xml => $xml, %args );
 }
 
-=head2 new_from_xml( xml => $xml, cacert => $cacert )
+=head2 new_from_xml( xml => $xml, verify_certs => 1, cacert => $cacert )
 
 Constructor. Create an IdP object using the provided metadata XML
 document.
@@ -128,7 +128,8 @@ sub new_from_xml {
         certs          => $data->{Cert},
         formats        => $data->{NameIDFormat},
         default_format => $data->{DefaultFormat},
-        cacert         => $args{cacert},
+        verify_certs   => ( exists $args{verify_certs} ? $args{verify_certs} : 1 ),
+        ( $args{verify_certs} ? ( cacert => $args{cacert} ) : () ),
     );
 
     return $self;
@@ -136,11 +137,11 @@ sub new_from_xml {
 
 sub BUILD {
     my ($self) = @_;
-    my $ca = Crypt::OpenSSL::VerifyX509->new($self->cacert);
+    my $ca = $self->verify_certs && Crypt::OpenSSL::VerifyX509->new($self->cacert);
         
     for my $use (keys %{ $self->certs }) {
         my $cert = Crypt::OpenSSL::X509->new_from_string($self->certs->{$use});
-        unless ($ca->verify($cert)) {
+        if ( $ca && ! $ca->verify($cert)) {
             die "can't verify IdP '$use' cert";
         }
     }       
