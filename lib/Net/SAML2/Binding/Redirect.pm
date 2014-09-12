@@ -1,6 +1,6 @@
 package Net::SAML2::Binding::Redirect;
 use Moose;
-use MooseX::Types::Moose qw/ Str /;
+use MooseX::Types::Moose qw/ Str Bool /;
 use MooseX::Types::URI qw/ Uri /;
 
 =head1 NAME
@@ -52,7 +52,8 @@ Arguments:
 
 =cut
 
-has 'key'   => (isa => Str, is => 'ro', required => 1);
+has 'key'   => (isa => Str, is => 'ro', required => 0);
+has 'unsigned' => (isa => Bool, is => 'ro', default => 0);
 has 'cert'  => (isa => Str, is => 'ro', required => 1);
 has 'url'   => (isa => Uri, is => 'ro', required => 1, coerce => 1);
 has 'param' => (isa => Str, is => 'ro', required => 1);
@@ -82,12 +83,14 @@ sub sign {
     $u->query_param('RelayState', $relaystate) if defined $relaystate;
     $u->query_param('SigAlg', 'http://www.w3.org/2000/09/xmldsig#rsa-sha1');
 
-    my $key_string = read_file($self->key);
-    my $rsa_priv = Crypt::OpenSSL::RSA->new_private_key($key_string);
+    if ( ! $self->unsigned ) {
+        my $key_string = read_file($self->key);
+        my $rsa_priv = Crypt::OpenSSL::RSA->new_private_key($key_string);
 
-    my $to_sign = $u->query;
-    my $sig = encode_base64($rsa_priv->sign($to_sign), '');
-    $u->query_param('Signature', $sig);
+        my $to_sign = $u->query;
+        my $sig = encode_base64($rsa_priv->sign($to_sign), '');
+        $u->query_param('Signature', $sig);
+    }
 
     my $url = $u->as_string;
     return $url;
