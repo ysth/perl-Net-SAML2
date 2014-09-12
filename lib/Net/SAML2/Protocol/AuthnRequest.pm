@@ -35,6 +35,7 @@ Arguments:
 
 has 'issuer'        => (isa => Uri, is => 'ro', required => 1, coerce => 1);
 has 'destination'   => (isa => Uri, is => 'ro', required => 1, coerce => 1);
+has 'assertion_consumer_service_url' => (isa => Uri, is => 'ro', coerce => 1);
 has 'nameid_format' => (isa => NonEmptySimpleStr, is => 'ro', required => 1);
 
 =head2 as_xml()
@@ -57,6 +58,7 @@ sub as_xml {
               ID => $self->id,
               IssueInstant => $self->issue_instant,
               ProviderName => "My SP's human readable name.",
+              ( $self->assertion_consumer_service_url ? ( AssertionConsumerServiceURL => $self->assertion_consumer_service_url ) : () ),
               Version => '2.0' },
             $x->Issuer(
                 $saml,
