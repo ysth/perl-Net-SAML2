@@ -1,6 +1,6 @@
 package Net::SAML2::Binding::POST;
 use Moose;
-use MooseX::Types::Moose qw/ Str /;
+use MooseX::Types::Moose qw/ Str Bool /;
 
 =head1 NAME
 
@@ -29,7 +29,9 @@ No arguments.
 
 =cut
 
-has 'cacert' => (isa => Str, is => 'ro', required => 1);
+has 'cacert'       => (isa => Str, is => 'ro', lazy => 1, default => sub { $_[0]->idp ? $_[0]->idp->cacert : undef } );
+has 'verify_certs' => (isa => Bool, is => 'ro', lazy => 1, default => sub { $_[0]->idp ? $_[0]->idp->cacert : 1 } );
+has 'idp'          => (isa => 'Net::SAML2::IdP', is => 'ro');
 
 =head2 handle_response($response)
 
@@ -49,13 +51,18 @@ sub handle_response {
 
     # verify the signing certificate
     my $cert = $x->signer_cert;
-    my $ca = Crypt::OpenSSL::VerifyX509->new($self->cacert);
-    $ret = $ca->verify($cert);
 
-    if ($ret) {
-        return sprintf("%s (verified)", $cert->subject);
+    my $subject = $cert->subject;
+    if ($self->verify_certs) {
+        my $ca = Crypt::OpenSSL::VerifyX509->new($self->cacert);
+        $ret = $ca->verify($cert);
+        unless ($ret) {
+            return;
+        }
+        $subject .= ' (verified)';
     }
-    return;
+
+    return $subject;
 }
 
 __PACKAGE__->meta->make_immutable;
